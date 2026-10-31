@@ -800,3 +800,7 @@ Goal: host dashboard and API on Vercel only (no tunnel, no second host).
 ## 2026-10-31 · First Vercel deployment: path rewrite fix
 
 First real deploy (project `incident-reconstruction`): the build and bundle size were accepted. The function received every request as `/api/index` (404 from FastAPI). `vercel.json` now rewrites `/api/:path*` to `/api/index?__p=:path*` and `api/index.py` restores the real path before routing. `/api/health` and `/api/timeline` verified on the deployment (Deployment Protection is on; checked with `vercel curl`). R2 secrets not yet set, so `direct_upload` is false.
+
+## 2026-10-31 · Vercel: serve the dashboard from the function
+
+Vercel auto-detected the project as FastAPI and routed `/` to the API (`{"detail":"Not Found"}`), ignoring the static build. `api/index.py` now serves `src/frontend/dist` itself for non-`/api` paths (bundled via `includeFiles`, with an `index.html` fallback). Disabling framework detection instead pushed the bundle to 519 MB (limit 500 MB), so it was not used. Verified on the deployment: `/` returns the dashboard, `/api/health` the API.

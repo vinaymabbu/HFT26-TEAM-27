@@ -4,8 +4,8 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "includeFiles": "{fixtures,data}/**",
-      "excludeFiles": "{eval,docs,tests,storage,scripts,src/frontend,node_modules}/**"
+      "includeFiles": "{fixtures,data,src/frontend/dist}/**",
+      "excludeFiles": "{eval,docs,tests,storage,scripts,node_modules,src/frontend/node_modules,src/frontend/src}/**"
     }
   },
   "rewrites": [
