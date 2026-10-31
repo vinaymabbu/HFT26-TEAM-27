@@ -409,6 +409,7 @@ class _Builder:
             members = c.members
             core = [o for o, _ in c.anchored] or c.attached
             lo, hi = ranges[id(c)]
+            support = core + [a for a in c.attached if a.attributes.get("order") is not None]
             drafts.append({
                 "t_start_s": round(lo, 3), "t_end_s": round(max(hi, lo), 3),
                 "label": self._label(c, descs, lo),
@@ -417,7 +418,9 @@ class _Builder:
                 "observation_ids": [o.id for o in members],
                 "source_types": sorted({o.source_type for o in members}, key=lambda s: s.value),
                 # clock claims say what happened, not when: they add no confidence
-                "confidence": round(combined_confidence(core + [a for a in c.attached if a.attributes.get("order") is not None]), 3),
+                "confidence": round(combined_confidence(support), 3),
+                # the same, resting on observation alone (measured, derived or reported), not on the model's readings
+                "confidence_observed": round(combined_confidence([o for o in support if o.basis != "inferred"]), 3),
                 "uncertainty_s": round(c.uncertainty, 3),
                 # Observation vs inference: the strongest kind of evidence behind the event, and the mix.
                 "basis": min((o.basis for o in members), key=lambda b: BASIS_RANK[b]),

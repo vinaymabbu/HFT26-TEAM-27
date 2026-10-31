@@ -85,6 +85,9 @@ export default function IncidentTimeline({ timeline, time, selectedObs, onFocus,
                   <BasisBadge basis={e.basis} />
                   <span className={`font-medium ${e.confidence >= 0.7 ? 'text-emerald-700' : e.confidence >= 0.4 ? 'text-amber-700' : 'text-rose-600'}`}
                     title="How well the evidence supports this event">conf {Math.round(e.confidence * 100)}%</span>
+                  <span className="text-slate-500"
+                    title={`On observations alone (measured, derived or witness-reported) the event stands at ${Math.round((e.confidence_observed ?? 0) * 100)}%. The rest of its confidence rests on inference, the AI model's readings.`}>
+                    · observed {Math.round((e.confidence_observed ?? 0) * 100)}%</span>
                   {flags.length > 0 && (
                     <a href="#contradictions" onClick={(ev) => ev.stopPropagation()} title={flags.map((f) => f.title).join('\n')}
                       className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">⚠ {flags.length} open</a>
@@ -108,7 +111,11 @@ export default function IncidentTimeline({ timeline, time, selectedObs, onFocus,
         <div className="mt-3 rounded border border-slate-200 p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold text-slate-700">Evidence for “{current.label}”</h3>
-            <span className="shrink-0 text-[0.7rem] text-slate-400">confidence {Math.round(current.confidence * 100)}%</span>
+            <span className="shrink-0 text-[0.7rem] text-slate-400"
+              title="Confidence on observations alone leaves out the AI model's readings; the gap is what rests on inference.">
+              confidence {Math.round(current.confidence * 100)}% · on observation alone {Math.round((current.confidence_observed ?? 0) * 100)}%
+              {current.confidence_observed < current.confidence - 0.005 && ` · ${Math.round((current.confidence - current.confidence_observed) * 100)} pts rest on inference`}
+            </span>
           </div>
           <EventFrame event={current} observationsById={observationsById} eventAnalysis={eventAnalysis} />
           <ObservationList ids={current.observation_ids} observationsById={observationsById} />

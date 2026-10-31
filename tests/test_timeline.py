@@ -192,3 +192,31 @@ def test_a_witness_only_event_shows_the_witness_confidence_not_its_square(monkey
     (claim,) = out.observations
     (event,) = [e for e in build_timeline([out]).events if claim.id in e.observation_ids]
     assert event.confidence == pytest.approx(claim.confidence, abs=0.001)
+
+
+def test_event_confidence_is_split_into_what_rests_on_observation_and_what_rests_on_inference():
+    """An event's confidence_observed is the same combination without the inferred (AI-read) evidence."""
+    from datetime import datetime, timezone
+    from app.modules.timeline import build_timeline
+    from app.schemas import Observation, ObservationSet, SourceRef
+
+    def make(i, source, file, conf, basis):
+        return Observation(id=i, source_type=source, source_ref=SourceRef(evidence_id=file, file=f"{file}.dat", locator="row:2"),
+                           t_rel_s=4.0, time_uncertainty_s=0.3, action="collision", vehicle_description="white sedan", confidence=conf,
+                           basis=basis, attributes={})
+
+    def event(*obs):
+        sets = [ObservationSet(source_type=o.source_type, evidence_id=o.source_ref.evidence_id, producer="t",
+                               generated_at=datetime.now(timezone.utc), observations=[o]) for o in obs]
+        (e,) = [e for e in build_timeline(sets).events if e.category == "collision"]
+        return e
+
+    sensor, ai = make("s", "sensor", "f_sensor", 0.9, "measured"), make("a", "video", "f_video", 0.6, "inferred")
+    both = event(sensor, ai)
+    assert both.confidence == pytest.approx(1 - 0.1 * 0.4, abs=0.001)           # corroboration raises the total
+    assert both.confidence_observed == pytest.approx(0.9, abs=0.001)           # observation alone: the sensor
+    assert both.confidence_observed < both.confidence                          # the gap is what rests on inference
+    only_ai = event(ai)
+    assert only_ai.confidence == pytest.approx(0.6, abs=0.001) and only_ai.confidence_observed == 0.0
+    only_sensor = event(sensor)
+    assert only_sensor.confidence_observed == only_sensor.confidence

@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-SCHEMA_VERSION = "1.3.5"
+SCHEMA_VERSION = "1.3.6"
 
 
 # ---------------------------------------------------------------- evidence
@@ -109,6 +109,11 @@ class TimelineEvent(BaseModel):
     basis: Literal["measured", "reported", "derived", "inferred"] | None = Field(
         None, description="Strongest basis among the supporting observations (measured > derived > reported > inferred)")
     basis_counts: dict[str, int] = Field(default_factory=dict)
+    confidence_observed: float = Field(
+        0.0, ge=0, le=1,
+        description="What `confidence` would be on observations alone: the same combination, leaving out inferred "
+                    "evidence (the AI model's readings). The gap to `confidence` is what rests on inference; 0 when "
+                    "every supporting observation is an inference.")
 
 
 class Timeline(BaseModel):
