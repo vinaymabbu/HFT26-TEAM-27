@@ -24,7 +24,7 @@ export const SOURCE_LABELS = {
   tracked: 'tracked in video',
   interpolated: 'interpolated between samples',
   extrapolated: 'extrapolated beyond samples',
-  estimated: 'estimated (no positional evidence)',
+  estimated: 'estimated (position assumed, not measured)',
 }
 
 // Consecutive track points with the same observed/inferred status, as time runs.
