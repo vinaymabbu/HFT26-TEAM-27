@@ -75,7 +75,7 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
             a, b = pts[max(0, k - 1)], pts[min(len(pts) - 1, k + 1)]
             track.append(TrackPoint(t_s=t, x_m=x, y_m=y, heading_deg=_heading(b[1] - a[1], b[2] - a[2]),
                                     speed_kmh=speeds.get(round(t, 3)), box=boxes[k],
-                                    source="estimated" if _is_ai(o) else "tracked", confidence=o.confidence))
+                                    source="tracked", confidence=o.confidence))
         view = o.attributes["view"]
         mean = o.attributes.get("mean_speed_kmh")
         speed = f"~{mean:g} km/h ({o.attributes.get('calibration', '').replace('_', ' ')} calibration)" if mean else \
@@ -87,8 +87,7 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
             color=AI_COLORS[(n_ai - 1) % len(AI_COLORS)] if _is_ai(o) else VIEW_COLORS[(view - 1) % len(VIEW_COLORS)],
             description=(f"AI-sighted vehicle, {o.attributes.get('direction', '')}; coarse, from the model's boxes" if o.attributes.get("source")
                          else f"moving, {o.attributes.get('direction', '')}, {speed}"),
-            track=track, source_observation_ids=[o.id],
-            assumptions=[AI_READING] if _is_ai(o) else []))
+            track=track, source_observation_ids=[o.id], assumptions=[]))
 
     for n, o in enumerate(stopped, start=1):
         x1, y1, x2, y2 = o.attributes["box"]
@@ -103,7 +102,9 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
             track=[TrackPoint(t_s=t, x_m=cx, y_m=cy, heading_deg=0, source="estimated", confidence=o.confidence,
                               box=[round(x1 / 1000 * w, 1), round(y1 / 1000 * h, 1), round(x2 / 1000 * w, 1), round(y2 / 1000 * h, 1)])
                    for t in (t0, t1)],
-            source_observation_ids=[o.id], assumptions=[AI_READING + (f" ({o.attributes['verified_by']})" if o.attributes.get("verified_by") else "")]))
+            source_observation_ids=[o.id],
+            assumptions=["A stop is a conclusion drawn from the AI model's detections: the same vehicle at the same place"
+                         + (f" ({o.attributes['verified_by']})" if o.attributes.get("verified_by") else "")]))
 
     times = [p.t_s for v in vehicles for p in v.track]
     t_min, t_max = min(times), max(times)

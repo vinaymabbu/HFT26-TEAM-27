@@ -94,6 +94,10 @@ def test_tracks_without_key_become_a_camera_reconstruction(tmp_path, monkeypatch
     moving = [v for v in recon.vehicles if v.vehicle_id[0] == "T"]
     assert moving and all(p.source == "tracked" for v in moving for p in v.track)
     assert all(v.assumptions == [] and v.source_observation_ids for v in moving)
+    # Split by claim: every detection is observed; a stop concluded from detections is inferred and says how.
+    stops = [v for v in recon.vehicles if v.vehicle_id[0] == "S"]
+    assert all(p.source == "estimated" for v in stops for p in v.track)
+    assert all(v.assumptions and "conclusion" in v.assumptions[0] for v in stops)
 
 
 def _px_track(camera: str, view_box=(0, 0, 480, 300)):
@@ -127,3 +131,20 @@ def test_no_schematic_plan_for_a_moving_camera():
     sets = [_OS(source_type="video", evidence_id="ev_v", producer="t", generated_at=datetime.now(timezone.utc),
                            observations=[_px_track("moving")])]
     assert reconstruct_schematic_from_camera(sets, build_timeline(sets)) is None
+
+
+def test_an_ai_detection_in_the_footage_is_observed_but_a_stop_concluded_from_it_is_inferred():
+    from app.schemas import Observation, ObservationSet, SourceRef, SourceType
+    pts = [[2.0 + 0.5 * k, 200.0 + 10 * k, 300.0 + 8 * k] for k in range(5)]
+    ai = Observation(
+        id="vid_b1", source_type=SourceType.video, source_ref=SourceRef(evidence_id="ev_v", file="v.mp4", locator="frames:1-9"),
+        t_rel_s=2.0, time_uncertainty_s=0.5, action="track", basis="inferred", confidence=0.45, vehicle_description="white van",
+        attributes={"track_id": "B1-001", "view": 1, "camera": "fixed", "units": "px", "frame_size": [480, 300], "fps": 10.0,
+                    "view_box": [0, 0, 480, 300], "grid": [[0, 0, 480, 300]], "points": pts, "label": "white van",
+                    "boxes": [[x - 20, y - 30, x + 20, y] for _, x, y in pts], "source": "AI vehicle boxes linked across keyframes",
+                    "direction": "towards camera"})
+    sets = [ObservationSet(source_type=SourceType.video, evidence_id="ev_v", producer="t", generated_at=datetime.now(timezone.utc), observations=[ai])]
+    recon = build_event_analysis(sets, build_timeline(sets))
+    (van,) = recon.vehicles
+    assert all(p.source == "tracked" and p.confidence == 0.45 and p.box for p in van.track)   # a detection: observed, with the model's confidence
+    assert van.assumptions == [] and van.source_observation_ids == ["vid_b1"]

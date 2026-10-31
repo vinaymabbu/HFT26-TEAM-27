@@ -38,7 +38,7 @@ function ConfidenceBar({ value }) {
 }
 
 // Share of observed vs inferred points: the split the problem statement asks to keep visible.
-function ObservedInferred({ stats }) {
+export function ObservedInferred({ stats }) {
   const o = Math.round(stats.observed * 100)
   return (
     <div>

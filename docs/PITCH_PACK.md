@@ -11,7 +11,7 @@ Numbers come from `scripts/evaluate.py` (6 synthetic cases with answer keys) and
 - Video: FastAPI + OpenCV -> Featherless **Qwen/Qwen3-VL-30B-A3B-Instruct**. Scans at 4 fps to pick keyframes, sends at most **24 keyframes** (768 px JPEG) per video; fixed cameras also send a second frame 1 s later. Movement info: fixed camera = OpenCV motion tracks + AI boxes (position/direction, no km/h unless calibrated); dashcam = relative ego motion (moving / braking / stopped / turning), not km/h.
 - Witness: Featherless **Qwen/Qwen3-30B-A3B-Instruct-2507** -> vehicle, action, order, time, hedges. Quotes must be verbatim; injected instructions are stripped.
 - Sensor: Pandas. Layouts: vehicle track (timestamp/epoch + speed in km/h, mph, m/s or knots + x/y or lat/lon + heading + brake + vehicle id), signal log (time, approach, state), optical flow, frame index. Demo files: `signal_controller.csv` (timestamp,approach,state), `v1_telematics.csv` (timestamp,vehicle_id,speed_kmh,x_m,y_m,heading_deg,brake), `v2_obd.csv` (epoch_ms,unit_id,speed_mph,pos_x,pos_y,hdg,brake_pedal). Gap = step > 1.5x the median interval.
-- Validation: max 200 MB; duplicates rejected by SHA-256 (409); video must decode; witness = non-empty UTF-8 .txt; CSV needs a recognised layout and a time column. Everything is Pydantic-validated JSON (schema 1.3.6).
+- Validation: max 200 MB; duplicates rejected by SHA-256 (409); video must decode; witness = non-empty UTF-8 .txt; CSV needs a recognised layout and a time column. Everything is Pydantic-validated JSON (schema 1.3.7).
 
 ## Slide 4: Timeline and contradictions
 - Timeline: merge -> normalise to t = seconds from a reference -> sort -> cluster observations within 1.0 s + their uncertainties -> label.

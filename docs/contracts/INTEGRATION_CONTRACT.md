@@ -1,6 +1,6 @@
 # Integration contract
 
-**Source of truth:** [`src/backend/app/schemas.py`](../../src/backend/app/schemas.py) (schema version `1.3.6`).
+**Source of truth:** [`src/backend/app/schemas.py`](../../src/backend/app/schemas.py) (schema version `1.3.7`).
 JSON Schema copies live in [`schemas/`](schemas/). Regenerate them with `python scripts/export_schemas.py`.
 Example payloads for every shape are in [`/fixtures`](../../fixtures).
 
@@ -38,7 +38,7 @@ no junction, no vehicle names, no lane-marking standard, no clock.
 Every observation has `basis`: **measured** (read from a sensor or log), **reported** (a witness), **derived**
 (computed by deterministic rules: tracking, calibration, fusion, thresholds) or **inferred** (an AI model's
 reading). Derived observations list `derived_from`. Timeline events carry the strongest basis behind them and
-`basis_counts`, and `confidence_observed` (the event's confidence on observations alone, leaving out inferred ones; the gap to `confidence` is what rests on inference; added in 1.3.6); conflicts carry `basis: rule | llm`; track points carry `source` (measured / interpolated /
+`basis_counts`, and `confidence_observed` (the event's confidence on observations alone, leaving out inferred ones; the gap to `confidence` is what rests on inference; added in 1.3.7); conflicts carry `basis: rule | llm`; track points carry `source` (measured / interpolated /
 extrapolated / tracked / estimated) and `confidence`.
 
 ## Shared conventions
@@ -92,8 +92,8 @@ extrapolated / tracked / estimated) and `confidence`.
 | GET | `/api/timeline` | `Timeline` |
 | GET | `/api/conflicts` | `ConflictReport` |
 | GET | `/api/reconstruction` | `Reconstruction`: the **top-down map in metres** (sensor/GPS paths, else a calibrated camera view on the road plane, else a **schematic** plan from an uncalibrated fixed camera (`scene.units: "schematic"`, every point `estimated`, no speeds, no collision marker, `note` states the assumptions), else empty with `note` saying what evidence is missing) |
-| GET | `/api/reconstruction/positions?download=false` | The same reconstruction as a plain "id and positions" JSON: `vehicles[{id, label, positions[{t_s, x, y, heading_deg, speed_kmh, source, basis, observation_ids, confidence}]}]` (`source` = measured / interpolated / extrapolated / tracked / estimated; `basis` = `sensor` \| `video` \| `simulated`, where simulated is bundled demo data or a position with no evidence behind it; `observation_ids` = the observations the point rests on: its own sample, the two neighbouring samples when filled in, plus the sensor-gap observation that explains a filled-in stretch), `collision{t_s, x, y, confidence}`, and a `coordinate_system` block (metres +x east / +y north, or camera pixels). Each vehicle also lists `assumptions` (what was added to the observation to get its positions: an assumed field of view, a road direction, the AI model's reading; empty when the positions are observed directly) next to `source_observation_ids` (added in 1.3.6). `download=true` sends it as `vehicle_positions.json` |
-| GET | `/api/event-analysis` | `Reconstruction` with a `camera_image` scene: footage with detections and image-space tracks (pixels), or `null` without video tracks |
+| GET | `/api/reconstruction/positions?download=false` | The same reconstruction as a plain "id and positions" JSON: `vehicles[{id, label, positions[{t_s, x, y, heading_deg, speed_kmh, source, basis, observation_ids, confidence}]}]` (`source` = measured / interpolated / extrapolated / tracked / estimated; `basis` = `sensor` \| `video` \| `simulated`, where simulated is bundled demo data or a position with no evidence behind it; `observation_ids` = the observations the point rests on: its own sample, the two neighbouring samples when filled in, plus the sensor-gap observation that explains a filled-in stretch), `collision{t_s, x, y, confidence}`, and a `coordinate_system` block (metres +x east / +y north, or camera pixels). Each vehicle also lists `assumptions` (what was added to the observation to get its positions: an assumed field of view, a road direction, the AI model's reading; empty when the positions are observed directly) next to `source_observation_ids` (added in 1.3.7). `download=true` sends it as `vehicle_positions.json` |
+| GET | `/api/event-analysis` | `Reconstruction` with a `camera_image` scene: footage with detections and image-space tracks (pixels), or `null` without video tracks. A track point may carry `box` = `[x1, y1, x2, y2]`, the detection box around the vehicle in image pixels (1.3.4, optional). The observed/inferred split is by what is claimed: a detection (the motion tracker's point, or the AI model's box read from a frame, with the model's confidence) is observed, `source: tracked`; a conclusion drawn from detections, such as a stop, is inferred, `source: estimated`, and its `VehicleTrack.assumptions` say how it was concluded. On a map plan (`/api/reconstruction`) every position is inferred, because it depends on an assumed or calibrated camera (1.3.7) |
 
 Before the first run, the GET endpoints serve fixtures.
 

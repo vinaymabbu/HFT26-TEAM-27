@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-SCHEMA_VERSION = "1.3.6"
+SCHEMA_VERSION = "1.3.7"
 
 
 # ---------------------------------------------------------------- evidence
@@ -168,7 +168,8 @@ class TrackPoint(BaseModel):
     speed_kmh: float | None = None
     source: Literal["measured", "interpolated", "extrapolated", "tracked", "estimated"] | None = Field(
         None, description="measured: at a sensor sample; interpolated/extrapolated: between/beyond samples; "
-                          "tracked: from video motion tracking; estimated: no positional evidence (scene default)")
+                          "tracked: detected in the video (the motion tracker, or the AI model's box read from a frame); "
+                          "estimated: a conclusion or an assumed position, not a detection (scene default)")
     confidence: float | None = Field(None, ge=0, le=1)
     box: list[float] | None = Field(
         None, min_length=4, max_length=4,

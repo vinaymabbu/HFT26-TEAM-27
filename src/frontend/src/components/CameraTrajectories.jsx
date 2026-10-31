@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '../api'
+import { ObservedInferred, trackStats } from './ReconstructionTrace'
 
 // Position of a pixel track at time t (linear between points), or null outside its span.
 function at(track, t) {
@@ -97,7 +98,7 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
             const b = at(v.track, t)?.box
             return b && <rect key={`box-${v.vehicle_id}`} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]}
               fill="none" stroke={v.color} strokeWidth={r / 2.2} {...(isAi(v) ? { strokeDasharray: `${r * 1.4} ${r}` } : {})}>
-              <title>{`${v.label}: ${isAi(v) ? "AI model's box: inferred" : 'motion-tracker box: observed in the image'} · evidence ${v.source_observation_ids.join(', ')}`}</title></rect>
+              <title>{`${v.label}: ${isAi(v) ? "AI-read box: the model's detection in this frame (observed, with the model's confidence)" : 'motion-tracker box: observed in the image'} · evidence ${v.source_observation_ids.join(', ')}`}</title></rect>
           })}
           {active.map((v) => {
             const p = at(v.track, t)
@@ -131,14 +132,19 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
           onChange={(e) => { setPlaying(false); onTimeChange(Number(e.target.value)) }} className="min-w-0 flex-1" />
         <span className="w-16 text-right font-mono text-xs">t={t.toFixed(1)}s</span>
       </div>
+      <div className="mt-3">
+        <h4 className="mb-1 text-xs font-medium text-slate-600">Observed vs inferred in this footage</h4>
+        <ObservedInferred stats={trackStats(data.vehicles)} />
+        <p className="mt-1 text-[0.7rem] text-slate-400">Observed: a vehicle detected in a frame, by the motion tracker or read by the AI model. Inferred: conclusions drawn from detections, such as a stop.</p>
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
         <span>{vehicles.length - stopped.length} moving tracks · {active.length} on screen now</span>
         {stopped.length > 0 && <span className="text-red-600">■ {stopped.map((v) => v.label).join(', ')}</span>}
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> full paths
         </label>
-        <label className="flex items-center gap-1" title="Solid: observed in the image by the motion tracker. Dashed: the AI model's reading, inferred.">
-          <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} /> boxes <span className="text-slate-400">(solid observed · dashed inferred)</span>
+        <label className="flex items-center gap-1" title="Solid: the motion tracker's detection. Dashed: the AI model's detection (AI-read). Both are observed in the frame; stops and positions on the road are conclusions.">
+          <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} /> boxes <span className="text-slate-400">(solid tracker · dashed AI-read)</span>
         </label>
         <span className="text-slate-400">
           {data.vehicles.some((v) => v.track.some((p) => p.speed_kmh != null))
