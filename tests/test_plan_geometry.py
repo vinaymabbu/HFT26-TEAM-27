@@ -136,6 +136,18 @@ def test_a_vehicle_driving_down_its_lane_runs_straight_up_the_road_aligned_plan(
         assert depths == sorted(depths)         # the track walks away from the camera: depth grows
 
 
+def test_schematic_confidence_follows_the_evidence_inside_a_low_ceiling():
+    project, vp = camera_pose(W, H, FOCAL, 8.0, 22, -20)
+    pts = [[2.0 + 0.2 * k, *project(-1.875, 0.0, 14.0 + 1.6 * k)] for k in range(14)]
+    aligned, nominal = _plan(pts, vp).vehicles[0].track, _plan(pts, None).vehicles[0].track
+    confs = [p.confidence for p in aligned]
+    assert len(set(confs)) > 1                                       # not one flat number for every point
+    assert 0.10 <= min(confs) and max(confs) <= 0.30                 # an uncalibrated plan stays low
+    by_row = sorted(zip((r[2] for r in pts), confs))
+    assert by_row[0][1] < by_row[-1][1]                              # farther from the camera (higher in the view) = less sure
+    assert all(n.confidence < a.confidence for n, a in zip(nominal, aligned))   # an assumed road direction is worth less than a found one
+
+
 def test_the_pipeline_attaches_the_road_direction_to_its_tracks(tmp_path, monkeypatch):
     from app import config
     from app.modules import ingestion

@@ -804,3 +804,9 @@ First real deploy (project `incident-reconstruction`): the build and bundle size
 ## 2026-10-31 · Vercel: serve the dashboard from the function
 
 Vercel auto-detected the project as FastAPI and routed `/` to the API (`{"detail":"Not Found"}`), ignoring the static build. `api/index.py` now serves `src/frontend/dist` itself for non-`/api` paths (bundled via `includeFiles`, with an `index.html` fallback). Disabling framework detection instead pushed the bundle to 519 MB (limit 500 MB), so it was not used. Verified on the deployment: `/` returns the dashboard, `/api/health` the API.
+
+## 2026-10-31 · Reconstruction confidence now follows the evidence (uncalibrated plan)
+
+Problem: in the schematic plan (no calibration), every point of every vehicle carried the constant `confidence=0.25`, so the Reconstruction panel showed a flat "25%" for all vehicles and times and the confidence bars said nothing.
+Fix (`reconstruction/camera.py`): a point's confidence = the detection's own confidence x plan factor (road direction found from lane lines 1.0, only assumed 0.6) x distance factor (0.6 at the top of the view, where a pixel spans most road, to 1.0 at the bottom), mapped into 0.10 to 0.30 so an uncalibrated plan still never reads as high-confidence. Sources are unchanged (`estimated`); calibrated plans are untouched.
+Test: `test_schematic_confidence_follows_the_evidence_inside_a_low_ceiling` (not flat, within 0.10 to 0.30, far < near, assumed road < found road). `pytest` 239 passed; evaluation 32/32 offline. Dataset 03: per-vehicle means 0.16 to 0.19 (was 0.25 everywhere).

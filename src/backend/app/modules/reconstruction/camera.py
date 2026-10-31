@@ -181,6 +181,11 @@ SCHEMATIC_HORIZON_ABOVE_VIEW = 0.15   # horizon row sits this fraction of the vi
 SCHEMATIC_FOCAL_PER_WIDTH = 0.87      # focal length = 0.87 x view width (about a 60 degree field of view)
 SCHEMATIC_NEAR_UNITS = 10.0           # schematic units per view-height of depth: bottom edge of the view = ~8.7 units
 MIN_SCHEMATIC_POINTS = 4
+# Confidence of a schematic point: an uncalibrated plan never exceeds SCHEMATIC_CONF_MAX, and within that range it
+# follows the evidence = the detection's own confidence x how far the plan itself can be trusted x distance from camera.
+SCHEMATIC_CONF_MIN, SCHEMATIC_CONF_MAX = 0.10, 0.30
+SCHEMATIC_PLAN_FACTOR = {"road_aligned": 1.0, "nominal_camera": 0.6}   # the road direction was found / only assumed
+SCHEMATIC_FAR_FACTOR = 0.6            # at the top of the view, where one pixel spans the most road; 1.0 at the bottom edge
 
 
 def reconstruct_schematic_from_camera(observation_sets: list[ObservationSet], timeline: Timeline) -> Reconstruction | None:
@@ -220,12 +225,16 @@ def reconstruct_schematic_from_camera(observation_sets: list[ObservationSet], ti
     for o in sorted(chosen, key=lambda o: o.attributes["points"][0][0]):
         n_ai += _is_ai(o)
         pts = [(t, *ground(x, y)) for t, x, y in o.attributes["points"]]
+        plan_factor = SCHEMATIC_PLAN_FACTOR["road_aligned" if aligned is not None else "nominal_camera"]
         track = []
         for k, (t, gx, gy) in enumerate(pts):
             a, b = pts[max(0, k - 1)], pts[min(len(pts) - 1, k + 1)]
+            near = min(max((o.attributes["points"][k][2] - y1) / h, 0.0), 1.0)   # 0 at the top of the view, 1 at the bottom
+            quality = min(o.confidence, 1.0) * plan_factor * (SCHEMATIC_FAR_FACTOR + (1 - SCHEMATIC_FAR_FACTOR) * near)
+            conf = SCHEMATIC_CONF_MIN + (SCHEMATIC_CONF_MAX - SCHEMATIC_CONF_MIN) * quality
             track.append(TrackPoint(t_s=t, x_m=round(gx, 2), y_m=round(gy, 2),
                                     heading_deg=round(math.degrees(math.atan2(b[1] - a[1], b[2] - a[2])) % 360, 1),
-                                    source="estimated", confidence=0.25))
+                                    source="estimated", confidence=round(conf, 2)))
         vehicles.append(VehicleTrack(
             vehicle_id=o.attributes["track_id"], label=_name(o, view) if _is_ai(o) else o.attributes["track_id"],
             color=AI_COLORS[(n_ai - 1) % len(AI_COLORS)] if _is_ai(o) else VIEW_COLORS[(view - 1) % len(VIEW_COLORS)],
