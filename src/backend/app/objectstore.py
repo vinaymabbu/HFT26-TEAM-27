@@ -97,7 +97,10 @@ class R2ObjectStore:
         headers = sign_headers(method, self.host, path, query or {}, hashlib.sha256(body).hexdigest(),
                                self.access_key, self.secret, self.region, extra=extra)
         url = f"https://{self.host}{_path(path)}" + (f"?{_query(query)}" if query else "")
-        return self._http.request(method, url, content=body or None, headers={k: v for k, v in headers.items() if k != "host"})
+        r = self._http.request(method, url, content=body or None, headers={k: v for k, v in headers.items() if k != "host"})
+        if r.status_code >= 400 and r.status_code != 404:
+            raise RuntimeError(f"object store {method} {path} -> {r.status_code}: {r.text[:300]}")
+        return r
 
     def get(self, key: str) -> bytes | None:
         r = self._request("GET", key)
@@ -177,7 +180,7 @@ class LocalObjectStore:
 
 def from_env():
     """R2 when R2_ACCOUNT_ID / R2_BUCKET / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY are set, else None (local disk only)."""
-    env = os.environ
+    env = {k: v.strip().strip("\"'").strip() for k, v in os.environ.items() if k.startswith("R2_")}  # pasted values often carry whitespace or quotes
     if all(env.get(k) for k in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")):
         return R2ObjectStore(env["R2_ACCOUNT_ID"], env["R2_BUCKET"], env["R2_ACCESS_KEY_ID"], env["R2_SECRET_ACCESS_KEY"],
                              env.get("R2_ENDPOINT") or None)
