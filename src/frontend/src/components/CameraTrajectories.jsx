@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { API_BASE } from '../api'
 
 // Position of a pixel track at time t (linear between points), or null outside its span.
 function at(track, t) {
@@ -78,7 +79,7 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
       }>
       <div className="relative mx-auto w-full overflow-hidden rounded bg-black" style={{ aspectRatio: `${box[2] - box[0]} / ${box[3] - box[1]}` }}>
         <svg viewBox={`${box[0]} ${box[1]} ${box[2] - box[0]} ${box[3] - box[1]}`} className="absolute inset-0 h-full w-full">
-          <image href={`/api/evidence/${img.evidence_id}/frames/${frame}?width=${img.width}`}
+          <image href={`${API_BASE}/api/evidence/${img.evidence_id}/frames/${frame}?width=${img.width}`}
             x={0} y={0} width={img.width} height={img.height} opacity={frameMissing ? 0 : 0.85}
             onLoad={() => setFrameMissing(false)} onError={() => setFrameMissing(true)} />
           {vehicles.map((v) => {

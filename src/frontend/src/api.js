@@ -1,7 +1,10 @@
 // Thin wrapper over the FastAPI endpoints. Shapes are defined in
 // src/backend/app/schemas.py (the integration contract).
+// Empty in development (Vite proxies /api). On Vercel set VITE_API_BASE to the backend's address, e.g. https://xyz.onrender.com
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+
 async function request(path, options) {
-  const res = await fetch(`/api${path}`, options)
+  const res = await fetch(`${API_BASE}/api${path}`, options)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || `${res.status} ${res.statusText}`)
@@ -28,7 +31,7 @@ export const api = {
   timeline: () => request('/timeline'),
   conflicts: () => request('/conflicts'),
   reconstruction: () => request('/reconstruction'),
-  positionsUrl: '/api/reconstruction/positions?download=true',
+  positionsUrl: `${API_BASE}/api/reconstruction/positions?download=true`,
   eventAnalysis: () => request('/event-analysis'),
 }
 
@@ -36,5 +39,5 @@ export const api = {
 export function frameUrl(observation, width = 320) {
   const m = /^frame:(\d+)$/.exec(observation?.source_ref?.locator ?? '')
   if (!m || observation.source_type !== 'video' || observation.source_ref.evidence_id.startsWith('ev_fx_')) return null
-  return `/api/evidence/${observation.source_ref.evidence_id}/frames/${m[1]}?width=${width}`
+  return `${API_BASE}/api/evidence/${observation.source_ref.evidence_id}/frames/${m[1]}?width=${width}`
 }

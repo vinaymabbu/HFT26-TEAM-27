@@ -1,0 +1,7 @@
+.venv
+node_modules
+storage
+eval
+.git
+.claude
+src/frontend

@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { API_BASE } from '../api'
 import { BasisBadge, SourceBadge } from './Panel'
 
 const MAX_SHOTS = 3
 
-const frameHref = (img, frame) => `/api/evidence/${img.evidence_id}/frames/${frame}?width=${img.width}`
+const frameHref = (img, frame) => `${API_BASE}/api/evidence/${img.evidence_id}/frames/${frame}?width=${img.width}`
 const frameAt = (img, t) => Math.max(0, Math.round((t - (img.t_offset_s ?? 0)) * (img.fps ?? 1)))
 
 // Where a vehicle track is at time t (linear between its points), or null outside its span.

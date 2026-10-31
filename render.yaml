@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: incident-api
+    runtime: docker
+    plan: starter            # needs a disk for uploads; the free plan has none
+    healthCheckPath: /api/health
+    disk: {name: evidence, mountPath: /data, sizeGB: 5}
+    envVars:
+      - {key: FEATHERLESS_API_KEY, sync: false}   # paste in the Render dashboard; never commit it
+      - {key: CORS_ORIGINS, sync: false}          # your Vercel URL, e.g. https://incident-xyz.vercel.app
