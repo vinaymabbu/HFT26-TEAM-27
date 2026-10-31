@@ -796,3 +796,7 @@ Goal: host dashboard and API on Vercel only (no tunnel, no second host).
 - Frontend: `api.js` uses direct upload for videos over 4 MB; `EvidenceManager.jsx` handles an inline-finished run.
 - Deploy files: `vercel.json`, `api/index.py`, root `requirements.txt` (no pytest/uvicorn), `.python-version`, `.vercelignore`, `docs/DEPLOY_VERCEL.md`.
 - Tests: `tests/test_serverless_mirror.py` (10): cold-start round trip, delete + id non-reuse, audit pull, direct upload, signatures. Not verified: the function bundle size and path rewriting on a real Vercel account.
+
+## 2026-10-31 · First Vercel deployment: path rewrite fix
+
+First real deploy (project `incident-reconstruction`): the build and bundle size were accepted. The function received every request as `/api/index` (404 from FastAPI). `vercel.json` now rewrites `/api/:path*` to `/api/index?__p=:path*` and `api/index.py` restores the real path before routing. `/api/health` and `/api/timeline` verified on the deployment (Deployment Protection is on; checked with `vercel curl`). R2 secrets not yet set, so `direct_upload` is false.

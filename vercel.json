@@ -8,5 +8,10 @@
       "excludeFiles": "{eval,docs,tests,storage,scripts,src/frontend,node_modules}/**"
     }
   },
-  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/index" }]
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index?__p=:path*"
+    }
+  ]
 }
