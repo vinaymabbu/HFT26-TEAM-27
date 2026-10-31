@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-SCHEMA_VERSION = "1.3.4"
+SCHEMA_VERSION = "1.3.5"
 
 
 # ---------------------------------------------------------------- evidence
@@ -165,10 +165,6 @@ class TrackPoint(BaseModel):
         None, description="measured: at a sensor sample; interpolated/extrapolated: between/beyond samples; "
                           "tracked: from video motion tracking; estimated: no positional evidence (scene default)")
     confidence: float | None = Field(None, ge=0, le=1)
-    seen_in_video: bool | None = Field(
-        None, description="True when the vehicle was actually detected in video at this moment (a motion-tracker or AI "
-                          "sighting), even if its position on the plan is only estimated; False/None otherwise. "
-                          "Separates 'it was seen' from 'where it was on the map is measured'.")
     box: list[float] | None = Field(
         None, min_length=4, max_length=4,
         description="Detection box around the vehicle at this point, [x1, y1, x2, y2] in image pixels (footage plan, "
@@ -183,6 +179,11 @@ class VehicleTrack(BaseModel):
     description: str | None = None
     track: list[TrackPoint]
     source_observation_ids: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(
+        default_factory=list,
+        description="What was added to the observation to get these positions (an assumed field of view, a road direction, "
+                    "the AI model's reading). Empty when the positions are observed directly. Together with "
+                    "source_observation_ids this links every inferred position to the evidence and the step beyond it.")
 
 
 class CollisionMarker(BaseModel):

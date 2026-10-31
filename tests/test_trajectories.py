@@ -90,6 +90,10 @@ def test_tracks_without_key_become_a_camera_reconstruction(tmp_path, monkeypatch
                 x1, y1, x2, y2 = p.box
                 assert x1 < x2 and y1 < y2 and x1 - 1 <= p.x_m <= x2 + 1 and y1 - 1 <= p.y_m <= y2 + 1
     assert any(p.box for v in recon.vehicles if v.vehicle_id[0] == "T" for p in v.track)
+    # In the footage (pixels) the motion tracker's points are observed in the image itself: nothing is assumed.
+    moving = [v for v in recon.vehicles if v.vehicle_id[0] == "T"]
+    assert moving and all(p.source == "tracked" for v in moving for p in v.track)
+    assert all(v.assumptions == [] and v.source_observation_ids for v in moving)
 
 
 def _px_track(camera: str, view_box=(0, 0, 480, 300)):

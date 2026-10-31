@@ -97,7 +97,7 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
             const b = at(v.track, t)?.box
             return b && <rect key={`box-${v.vehicle_id}`} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]}
               fill="none" stroke={v.color} strokeWidth={r / 2.2} {...(isAi(v) ? { strokeDasharray: `${r * 1.4} ${r}` } : {})}>
-              <title>{`${v.label}: ${isAi(v) ? "AI model's box (inferred)" : 'motion-tracker box'}`}</title></rect>
+              <title>{`${v.label}: ${isAi(v) ? "AI model's box: inferred" : 'motion-tracker box: observed in the image'} · evidence ${v.source_observation_ids.join(', ')}`}</title></rect>
           })}
           {active.map((v) => {
             const p = at(v.track, t)
@@ -137,8 +137,8 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> full paths
         </label>
-        <label className="flex items-center gap-1" title="Solid: motion tracker. Dashed: the AI model's box (inferred).">
-          <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} /> boxes
+        <label className="flex items-center gap-1" title="Solid: observed in the image by the motion tracker. Dashed: the AI model's reading, inferred.">
+          <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} /> boxes <span className="text-slate-400">(solid observed · dashed inferred)</span>
         </label>
         <span className="text-slate-400">
           {data.vehicles.some((v) => v.track.some((p) => p.speed_kmh != null))

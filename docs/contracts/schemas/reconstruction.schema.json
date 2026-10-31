@@ -268,19 +268,6 @@
           "default": null,
           "title": "Confidence"
         },
-        "seen_in_video": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "True when the vehicle was actually detected in video at this moment (a motion-tracker or AI sighting), even if its position on the plan is only estimated; False/None otherwise. Separates 'it was seen' from 'where it was on the map is measured'.",
-          "title": "Seen In Video"
-        },
         "box": {
           "anyOf": [
             {
@@ -348,6 +335,14 @@
           },
           "title": "Source Observation Ids",
           "type": "array"
+        },
+        "assumptions": {
+          "description": "What was added to the observation to get these positions (an assumed field of view, a road direction, the AI model's reading). Empty when the positions are observed directly. Together with source_observation_ids this links every inferred position to the evidence and the step beyond it.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
         }
       },
       "required": [
@@ -362,7 +357,7 @@
   },
   "properties": {
     "schema_version": {
-      "default": "1.3.4",
+      "default": "1.3.5",
       "title": "Schema Version",
       "type": "string"
     },

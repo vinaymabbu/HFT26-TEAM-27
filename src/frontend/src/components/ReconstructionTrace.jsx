@@ -24,9 +24,7 @@ export function trackStats(vehicles) {
   }
   const total = Object.values(counts).reduce((a, b) => a + b, 0)
   const observed = (counts.measured ?? 0) + (counts.tracked ?? 0)
-  // Seen in video, but its map position is only estimated (schematic plan, AI-sighted vehicles): detected, not measured.
-  const sighted = vehicles.reduce((a, v) => a + v.track.filter((p) => p.seen_in_video && !isObservedSource(p.source ?? 'estimated')).length, 0)
-  return { counts, total, mean: n ? sum / n : null, observed: total ? observed / total : 0, sighted: total ? sighted / total : 0 }
+  return { counts, total, mean: n ? sum / n : null, observed: total ? observed / total : 0 }
 }
 
 function ConfidenceBar({ value }) {
@@ -39,23 +37,18 @@ function ConfidenceBar({ value }) {
   )
 }
 
-// Share of observed vs inferred points: the split the problem statement asks to keep visible. A third band marks
-// vehicles that were seen in the video whose position on the plan is only an estimate.
+// Share of observed vs inferred points: the split the problem statement asks to keep visible.
 function ObservedInferred({ stats }) {
   const o = Math.round(stats.observed * 100)
-  const s = Math.min(Math.round((stats.sighted ?? 0) * 100), 100 - o)
-  const i = 100 - o - s
   return (
     <div>
-      <div className="flex h-2 overflow-hidden rounded bg-slate-100" title={`${o}% observed, ${s}% seen in video with an estimated position, ${i}% inferred`}>
+      <div className="flex h-2 overflow-hidden rounded bg-slate-100" title={`${o}% observed, ${100 - o}% inferred`}>
         <div className="bg-emerald-500" style={{ width: `${o}%` }} />
-        <div className="bg-sky-500" style={{ width: `${s}%` }} />
-        <div className="bg-violet-400 opacity-70" style={{ width: `${i}%`, backgroundImage: 'repeating-linear-gradient(45deg,transparent 0 3px,rgba(255,255,255,.55) 3px 5px)' }} />
+        <div className="bg-violet-400 opacity-70" style={{ width: `${100 - o}%`, backgroundImage: 'repeating-linear-gradient(45deg,transparent 0 3px,rgba(255,255,255,.55) 3px 5px)' }} />
       </div>
-      <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-[0.75rem]">
+      <div className="mt-1 flex justify-between text-[0.75rem]">
         <span className="text-emerald-700">{o}% observed</span>
-        {s > 0 && <span className="text-sky-700" title="The vehicle was detected in the video at this moment; where it sits on the plan is estimated, not measured.">{s}% seen in video, position estimated</span>}
-        <span className="text-violet-700">{i}% inferred</span>
+        <span className="text-violet-700">{100 - o}% inferred</span>
       </div>
     </div>
   )
@@ -191,6 +184,12 @@ export default function ReconstructionTrace({ data, time, selected, onSelect, po
               {vehicle.source_observation_ids.length
                 ? <EvidenceGroups ids={vehicle.source_observation_ids} observationsById={observationsById} />
                 : <p className="text-slate-400">No observation ids recorded for this track.</p>}
+            </div>
+            <div>
+              <h4 className="mb-1 font-medium text-slate-600">What was added to get these positions</h4>
+              {vehicle.assumptions?.length
+                ? <ul className="list-disc space-y-0.5 pl-4 text-[0.75rem] text-violet-800">{vehicle.assumptions.map((a) => <li key={a}>{a}</li>)}</ul>
+                : <p className="text-[0.75rem] text-emerald-700">Nothing: these positions are observed directly in the evidence.</p>}
             </div>
           </div>
         )}

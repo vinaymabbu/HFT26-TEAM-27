@@ -74,7 +74,8 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
         for k, (t, x, y) in enumerate(pts):
             a, b = pts[max(0, k - 1)], pts[min(len(pts) - 1, k + 1)]
             track.append(TrackPoint(t_s=t, x_m=x, y_m=y, heading_deg=_heading(b[1] - a[1], b[2] - a[2]),
-                                    speed_kmh=speeds.get(round(t, 3)), seen_in_video=True, box=boxes[k]))
+                                    speed_kmh=speeds.get(round(t, 3)), box=boxes[k],
+                                    source="estimated" if _is_ai(o) else "tracked", confidence=o.confidence))
         view = o.attributes["view"]
         mean = o.attributes.get("mean_speed_kmh")
         speed = f"~{mean:g} km/h ({o.attributes.get('calibration', '').replace('_', ' ')} calibration)" if mean else \
@@ -86,7 +87,8 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
             color=AI_COLORS[(n_ai - 1) % len(AI_COLORS)] if _is_ai(o) else VIEW_COLORS[(view - 1) % len(VIEW_COLORS)],
             description=(f"AI-sighted vehicle, {o.attributes.get('direction', '')}; coarse, from the model's boxes" if o.attributes.get("source")
                          else f"moving, {o.attributes.get('direction', '')}, {speed}"),
-            track=track, source_observation_ids=[o.id]))
+            track=track, source_observation_ids=[o.id],
+            assumptions=[AI_READING] if _is_ai(o) else []))
 
     for n, o in enumerate(stopped, start=1):
         x1, y1, x2, y2 = o.attributes["box"]
@@ -98,10 +100,10 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
         vehicles.append(VehicleTrack(
             vehicle_id=f"S{view or 0}-{n}", label=f"{o.attributes.get('label', 'vehicle')} (stopped, view {view})",
             color=STOPPED_COLOR, description=o.vehicle_description,
-            track=[TrackPoint(t_s=t, x_m=cx, y_m=cy, heading_deg=0, seen_in_video=True,
+            track=[TrackPoint(t_s=t, x_m=cx, y_m=cy, heading_deg=0, source="estimated", confidence=o.confidence,
                               box=[round(x1 / 1000 * w, 1), round(y1 / 1000 * h, 1), round(x2 / 1000 * w, 1), round(y2 / 1000 * h, 1)])
                    for t in (t0, t1)],
-            source_observation_ids=[o.id]))
+            source_observation_ids=[o.id], assumptions=[AI_READING + (f" ({o.attributes['verified_by']})" if o.attributes.get("verified_by") else "")]))
 
     times = [p.t_s for v in vehicles for p in v.track]
     t_min, t_max = min(times), max(times)
@@ -149,8 +151,7 @@ def reconstruct_ground_from_camera(observation_sets: list[ObservationSet], timel
             track.append(TrackPoint(t_s=t, x_m=round(x or 0.0, 2), y_m=round(y, 2),
                                     heading_deg=round(math.degrees(math.atan2(dx, dy)) % 360, 1),
                                     speed_kmh=None if ai else speeds.get(round(t, 3)),
-                                    source="estimated" if ai else "tracked", confidence=o.confidence if ai else 0.6,
-                                    seen_in_video=True))
+                                    source="estimated" if ai else "tracked", confidence=o.confidence if ai else 0.6))
         mean = o.attributes.get("mean_speed_kmh")
         vehicles.append(VehicleTrack(
             vehicle_id=o.attributes["track_id"], label=_name(o, view) if ai else f"{o.attributes['track_id']}" + (f" · ~{mean:g} km/h" if mean else ""),
@@ -159,7 +160,9 @@ def reconstruct_ground_from_camera(observation_sets: list[ObservationSet], timel
                          f"(inferred, no speed), {o.attributes.get('calibration', '').replace('_', ' ')} calibration" if ai else
                          f"{o.attributes.get('direction', '')}; tracked on camera view {view}, "
                          f"{o.attributes.get('calibration', '').replace('_', ' ')} calibration"),
-            track=track, source_observation_ids=[o.id]))
+            track=track, source_observation_ids=[o.id],
+            assumptions=[f"Metres from {o.attributes.get('calibration', 'lane-marking').replace('_', ' ')} calibration of the camera view"]
+                        + ([AI_READING] if ai else [])))
     if not vehicles:
         return None
     xs = [p.x_m for v in vehicles for p in v.track]
@@ -186,6 +189,8 @@ SCHEMATIC_HORIZON_ABOVE_VIEW = 0.15   # horizon row sits this fraction of the vi
 SCHEMATIC_FOCAL_PER_WIDTH = 0.87      # focal length = 0.87 x view width (about a 60 degree field of view)
 SCHEMATIC_NEAR_UNITS = 10.0           # schematic units per view-height of depth: bottom edge of the view = ~8.7 units
 MIN_SCHEMATIC_POINTS = 4
+AI_READING = "Position is the AI vision model's reading of the frame (basis: inferred), not a measurement"
+SCHEMATIC_CAMERA_ASSUMPTION = "Image positions mapped onto a flat road with an assumed camera (about 60 degree field of view): layout and order only, not distances"
 # Confidence of a schematic point: an uncalibrated plan never exceeds SCHEMATIC_CONF_MAX, and within that range it
 # follows the evidence = the detection's own confidence x how far the plan itself can be trusted x distance from camera.
 SCHEMATIC_CONF_MIN, SCHEMATIC_CONF_MAX = 0.10, 0.30
@@ -239,13 +244,16 @@ def reconstruct_schematic_from_camera(observation_sets: list[ObservationSet], ti
             conf = SCHEMATIC_CONF_MIN + (SCHEMATIC_CONF_MAX - SCHEMATIC_CONF_MIN) * quality
             track.append(TrackPoint(t_s=t, x_m=round(gx, 2), y_m=round(gy, 2),
                                     heading_deg=round(math.degrees(math.atan2(b[1] - a[1], b[2] - a[2])) % 360, 1),
-                                    source="estimated", confidence=round(conf, 2), seen_in_video=True))
+                                    source="estimated", confidence=round(conf, 2)))
         vehicles.append(VehicleTrack(
             vehicle_id=o.attributes["track_id"], label=_name(o, view) if _is_ai(o) else o.attributes["track_id"],
             color=AI_COLORS[(n_ai - 1) % len(AI_COLORS)] if _is_ai(o) else VIEW_COLORS[(view - 1) % len(VIEW_COLORS)],
             description=(f"AI-sighted vehicle, {o.attributes.get('direction', '')}; schematic position from camera view {view}" if o.attributes.get("source")
                          else f"moving {o.attributes.get('direction', '')}; schematic position from camera view {view}"),
-            track=track, source_observation_ids=[o.id]))
+            track=track, source_observation_ids=[o.id],
+            assumptions=[SCHEMATIC_CAMERA_ASSUMPTION,
+                         "Road direction taken from the lane lines and rails in the picture" if aligned is not None
+                         else "Road direction assumed: the camera looks along the road"] + ([AI_READING] if _is_ai(o) else [])))
     xs = [p.x_m for v in vehicles for p in v.track]
     ys = [p.y_m for v in vehicles for p in v.track]
     times = [p.t_s for v in vehicles for p in v.track]
