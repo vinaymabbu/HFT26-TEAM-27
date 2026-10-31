@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-SCHEMA_VERSION = "1.3.3"
+SCHEMA_VERSION = "1.3.4"
 
 
 # ---------------------------------------------------------------- evidence
@@ -169,6 +169,11 @@ class TrackPoint(BaseModel):
         None, description="True when the vehicle was actually detected in video at this moment (a motion-tracker or AI "
                           "sighting), even if its position on the plan is only estimated; False/None otherwise. "
                           "Separates 'it was seen' from 'where it was on the map is measured'.")
+    box: list[float] | None = Field(
+        None, min_length=4, max_length=4,
+        description="Detection box around the vehicle at this point, [x1, y1, x2, y2] in image pixels (footage plan, "
+                    "scene.units == 'px' only). From the motion tracker's blob or the AI model's sighting; the box of an "
+                    "AI-sighted vehicle (see VehicleTrack.description) is the model's reading, not a measurement.")
 
 
 class VehicleTrack(BaseModel):

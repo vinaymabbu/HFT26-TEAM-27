@@ -386,6 +386,7 @@ def fixed_box_observations(evidence: Evidence, info: VideoInfo, analysed: list[t
                         "frame_size": [info.width, info.height], "fps": round(info.fps, 3),
                         "view_box": [0, 0, info.width, info.height], "grid": [[0, 0, info.width, info.height]],
                         "label": tr.label, "labels": dict(sorted(labels.items(), key=lambda kv: -kv[1])), "points": pts,
+                        "boxes": [[round(v, 1) for v in s.box] for s in tr.sights],
                         "sightings": len(tr.sights), "source": "AI vehicle boxes linked across keyframes",
                         **({"direction": direction} if direction else {}), **(road or {}), **metric},
             confidence=round(min(0.45, 0.3 + 0.04 * len(tr.sights)), 2)))
@@ -509,7 +510,8 @@ def tracks_to_observations(evidence: Evidence, info: VideoInfo, tracks: list[Tra
                         "view_box": list(views[tr.view - 1]), "grid": [list(v) for v in views],
                         "direction": "towards camera" if y1 > y0 else "away from camera",
                         "mean_speed_px_s": round(dist / max(t1 - t0, 1e-6), 1),
-                        "points": [[round(t + T0_OFFSET_S, 3), x, y] for t, x, y in tr.points], **metric,
+                        "points": [[round(t + T0_OFFSET_S, 3), x, y] for t, x, y in tr.points],
+                        **({"boxes": [[round(v, 1) for v in b] for b in tr.boxes]} if tr.boxes else {}), **metric,
                         **(roads or {}).get(tr.view, {})},
             confidence=0.6,
         ))

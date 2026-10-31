@@ -83,6 +83,13 @@ def test_tracks_without_key_become_a_camera_reconstruction(tmp_path, monkeypatch
     assert {v.vehicle_id[:2] for v in recon.vehicles} >= {"T1", "T4"}
     first = recon.vehicles[0].track
     assert first == sorted(first, key=lambda p: p.t_s)
+    # Every footage point carries the detection box around the vehicle: it contains the road-contact point.
+    for v in recon.vehicles:
+        for p in v.track:
+            if p.box is not None:
+                x1, y1, x2, y2 = p.box
+                assert x1 < x2 and y1 < y2 and x1 - 1 <= p.x_m <= x2 + 1 and y1 - 1 <= p.y_m <= y2 + 1
+    assert any(p.box for v in recon.vehicles if v.vehicle_id[0] == "T" for p in v.track)
 
 
 def _px_track(camera: str, view_box=(0, 0, 480, 300)):

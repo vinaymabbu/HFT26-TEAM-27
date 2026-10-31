@@ -10,10 +10,12 @@ function at(track, t) {
     if (t <= b.t_s) {
       const k = b.t_s === a.t_s ? 0 : (t - a.t_s) / (b.t_s - a.t_s)
       const speed = a.speed_kmh != null && b.speed_kmh != null ? a.speed_kmh + (b.speed_kmh - a.speed_kmh) * k : null
-      return { x: a.x_m + (b.x_m - a.x_m) * k, y: a.y_m + (b.y_m - a.y_m) * k, speed }
+      const box = a.box && b.box ? a.box.map((v, j) => v + (b.box[j] - v) * k) : null
+      return { x: a.x_m + (b.x_m - a.x_m) * k, y: a.y_m + (b.y_m - a.y_m) * k, speed, box }
     }
   }
-  return { x: track[track.length - 1].x_m, y: track[track.length - 1].y_m, speed: track[track.length - 1].speed_kmh }
+  const last = track[track.length - 1]
+  return { x: last.x_m, y: last.y_m, speed: last.speed_kmh, box: last.box ?? null }
 }
 
 // Tracks from the vision model's boxes (not from pixel motion) are inferred: drawn dotted and named.
@@ -23,6 +25,7 @@ const isAi = (v) => (v.description ?? '').startsWith('AI-sighted')
 export default function CameraTrajectories({ data, time, onTimeChange, Panel, title = 'Event Analysis' }) {
   const [playing, setPlaying] = useState(false)
   const [showAll, setShowAll] = useState(true)
+  const [showBoxes, setShowBoxes] = useState(true)
   const [view, setView] = useState(0) // 0 = all views
   // Set when a frame fails to load (the video was deleted or replaced since this run): say so, don't draw over black.
   const [frameMissing, setFrameMissing] = useState(false)
@@ -89,6 +92,13 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
               strokeWidth={r / 2.5} strokeOpacity={showAll ? 0.35 : 0.8}
               {...(isAi(v) ? { strokeLinecap: 'round', strokeDasharray: `0 ${r * 1.1}`, strokeWidth: r / 1.6, strokeOpacity: showAll ? 0.55 : 0.9 } : {})} />
           })}
+          {showBoxes && active.map((v) => {
+            // Detection box around the vehicle: solid where the motion tracker found it, dashed where it is the AI model's reading.
+            const b = at(v.track, t)?.box
+            return b && <rect key={`box-${v.vehicle_id}`} x={b[0]} y={b[1]} width={b[2] - b[0]} height={b[3] - b[1]}
+              fill="none" stroke={v.color} strokeWidth={r / 2.2} {...(isAi(v) ? { strokeDasharray: `${r * 1.4} ${r}` } : {})}>
+              <title>{`${v.label}: ${isAi(v) ? "AI model's box (inferred)" : 'motion-tracker box'}`}</title></rect>
+          })}
           {active.map((v) => {
             const p = at(v.track, t)
             const isStop = v.vehicle_id.startsWith('S')
@@ -126,6 +136,9 @@ export default function CameraTrajectories({ data, time, onTimeChange, Panel, ti
         {stopped.length > 0 && <span className="text-red-600">■ {stopped.map((v) => v.label).join(', ')}</span>}
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> full paths
+        </label>
+        <label className="flex items-center gap-1" title="Solid: motion tracker. Dashed: the AI model's box (inferred).">
+          <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} /> boxes
         </label>
         <span className="text-slate-400">
           {data.vehicles.some((v) => v.track.some((p) => p.speed_kmh != null))

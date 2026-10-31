@@ -155,6 +155,9 @@ def test_fixed_camera_box_tracks_use_the_bottom_centre_and_are_marked_inferred()
     assert t.attributes["camera"] == "fixed" and t.attributes["track_id"] == "B1-001" and t.basis == "inferred"
     assert t.attributes["points"][0][1:] == pytest.approx([150 / 1000 * 1920, 500 / 1000 * 1080])  # bottom centre of the box
     assert t.confidence < 0.5  # weaker than a motion track
+    boxes = t.attributes["boxes"]
+    assert len(boxes) == len(t.attributes["points"]) == 4  # one detection box per point, in pixels
+    assert boxes[0] == pytest.approx([100 / 1000 * 1920, 400 / 1000 * 1080, 200 / 1000 * 1920, 500 / 1000 * 1080])
 
 
 def test_a_box_track_that_duplicates_a_motion_track_is_dropped():

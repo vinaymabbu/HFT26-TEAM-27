@@ -818,3 +818,11 @@ Problem: the Reconstruction panel read "0% observed, 100% inferred" for a clip w
 - Set in `reconstruction/camera.py` (pixel, calibrated and schematic plans); exported in `/api/reconstruction/positions`; schemas re-exported; contract text and version updated.
 - Dashboard: the bar has a third band "seen in video, position estimated" (`ReconstructionTrace.jsx`); the source caption now says "position assumed, not measured".
 - Test: `test_schematic_points_are_marked_seen_in_video_but_stay_estimated`. `pytest` 240 passed; evaluation 32/32 offline; frontend builds. Dataset 03: 111 of 111 points seen in video, 0% measured.
+
+## 2026-10-31 · Detection boxes on every car in the Footage tab (schema 1.3.4)
+
+Problem: the Footage tab drew only a dot and a path per vehicle. Tracks kept only a centre point per moment; the size of each detection box was dropped when tracks were built, so boxes existed only for a few timeline events.
+- Video stage: motion tracks now keep the blob box at each point (`ingestion/video.py`, `Track.boxes`; tracker detections carry their box); AI box tracks keep each sighting's box (`ingestion/__init__.py`). Both ride in the track observation as `attributes.boxes` (pixels, aligned with `points`).
+- Contract: `TrackPoint.box` (optional `[x1, y1, x2, y2]`, image pixels, footage plan only), schema 1.3.4, schemas re-exported, contract text updated. Stopped vehicles' keyframe box is carried too.
+- Dashboard (`CameraTrajectories.jsx`): a box around each vehicle on screen (interpolated between sightings), solid for motion-tracker boxes, dashed for the AI model's (inferred), with a "boxes" toggle; tooltips say which.
+- Tests: box in the footage plan contains the vehicle's contact point (`test_trajectories.py`); AI box track keeps one box per point (`test_generic_video_proxy.py`). `pytest` 240 passed; evaluation 32/32 offline; frontend builds. Dataset 03: 126 of 126 footage points carry a box.

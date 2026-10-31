@@ -266,6 +266,7 @@ class Track:
     points: list[tuple[float, float, float]]   # (t_s, x_px, y_px) in full-frame pixels
     first_frame: int
     last_frame: int
+    boxes: list[tuple[float, float, float, float]] | None = None   # (x1, y1, x2, y2) of the motion blob at each point, full-frame pixels
 
 
 def track_vehicles(path: str, info: VideoInfo, views: list[tuple[int, int, int, int]],
@@ -305,7 +306,10 @@ def track_vehicles(path: str, info: VideoInfo, views: list[tuple[int, int, int, 
                 # Skip the far field (top fifth) where vehicles merge; size floor grows towards the camera.
                 # Position = bottom centre of the blob: where the vehicle meets the road. Calibration maps
                 # road-surface points to metres; the blob's centroid sits up on the body and reads too far away.
-                dets = [(cent[k][0] + x1, _contact_row(lab, opened, k, stats[k]) + y1) for k in range(1, n)
+                dets = [(cent[k][0] + x1, _contact_row(lab, opened, k, stats[k]) + y1,
+                         (float(stats[k][0] + x1), float(stats[k][1] + y1),
+                          float(stats[k][0] + stats[k][2] + x1), float(stats[k][1] + stats[k][3] + y1)))
+                        for k in range(1, n)
                         if cent[k][1] > 0.2 * vh and stats[k][4] >= area_k * (40 + 400 * (cent[k][1] / vh) ** 2)]
                 used: set[int] = set()
                 for tr in sorted(active[v], key=lambda tr: -len(tr["pts"])):
@@ -315,19 +319,21 @@ def track_vehicles(path: str, info: VideoInfo, views: list[tuple[int, int, int, 
                     ex, ey = px + vx * dt, py + vy * dt
                     gate = (6 + 30 * (py - y1) / vh) * vh / 300 + 0.3 * float(np.hypot(vx, vy)) * dt
                     best, best_d = None, gate
-                    for j, (dx, dy) in enumerate(dets):
+                    for j, (dx, dy, _) in enumerate(dets):
                         if j not in used and (d := float(np.hypot(dx - ex, dy - ey))) < best_d:
                             best, best_d = j, d
                     if best is not None:
-                        dx, dy = dets[best]
+                        dx, dy, blob = dets[best]
                         used.add(best)
                         if dt > 0:
                             tr["vel"] = (0.6 * vx + 0.4 * (dx - px) / dt, 0.6 * vy + 0.4 * (dy - py) / dt)
                         tr["pts"].append((t, dx, dy))
+                        tr["boxes"][round(t, 3)] = blob
                         tr["last"] = i
-                for j, (dx, dy) in enumerate(dets):
+                for j, (dx, dy, blob) in enumerate(dets):
                     if j not in used:
-                        tr = {"view": v + 1, "pts": [(t, dx, dy)], "vel": (0.0, 0.0), "first": i, "last": i}
+                        tr = {"view": v + 1, "pts": [(t, dx, dy)], "vel": (0.0, 0.0), "first": i, "last": i,
+                              "boxes": {round(t, 3): blob}}
                         active[v].append(tr)
                         tracks.append(tr)
                 active[v] = [tr for tr in active[v] if t - tr["pts"][-1][0] <= 0.5]
@@ -345,7 +351,10 @@ def track_vehicles(path: str, info: VideoInfo, views: list[tuple[int, int, int, 
         for seg in _split_on_reversal(tr["pts"]):
             if _plausible(seg, min_move=30.0 * vh / 300):
                 frames = (round(seg[0][0] * info.fps), round(seg[-1][0] * info.fps))
-                out.append(Track(view=tr["view"], points=_smooth(seg), first_frame=frames[0], last_frame=frames[1]))
+                pts = _smooth(seg)
+                boxes = [tr["boxes"].get(round(p[0], 3)) for p in pts]
+                out.append(Track(view=tr["view"], points=pts, first_frame=frames[0], last_frame=frames[1],
+                                 boxes=boxes if all(boxes) else None))
     return out
 
 
