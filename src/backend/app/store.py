@@ -52,6 +52,9 @@ def list_evidence() -> list[Evidence]:
     if not path.exists():
         return []
     items = [Evidence.model_validate(e) for e in json.loads(path.read_text())]
+    for e in items:  # the record holds the uploader's absolute path; on another machine the file lives in our upload folder
+        if not Path(e.stored_path).exists():
+            e.stored_path = str(config.UPLOAD_DIR / Path(e.stored_path).name)
     if any(e.ref is None for e in items):  # evidence uploaded before display ids existed: number by upload order
         with _REF_LOCK:
             for e in items:

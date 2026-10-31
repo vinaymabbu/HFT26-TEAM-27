@@ -85,9 +85,15 @@ export default function EvidenceManager({ run, observations, onAnalysisDone, onR
 
   const analyze = async () => {
     setMessage(null)
+    // Hosted serverless, the run happens inside this request and the answer is the finished job: show progress meanwhile.
+    setJob({ state: 'running', started_at: new Date().toISOString(), stages: [] })
     try {
-      setJob(await api.startJob())
+      const started = await api.startJob()
+      setJob(started)
+      if (started.state === 'failed') setMessage(started.error)
+      if (started.state !== 'running') await onAnalysisDone() // finished inside the request: the response is the result
     } catch (e) {
+      setJob(null)
       setMessage(e.message)
     }
   }

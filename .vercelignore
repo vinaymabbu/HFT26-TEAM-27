@@ -1,0 +1,9 @@
+storage
+eval
+tests
+docs
+scripts
+.venv
+reports
+node_modules
+src/frontend/node_modules

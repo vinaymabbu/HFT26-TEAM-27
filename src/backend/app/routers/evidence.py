@@ -8,8 +8,9 @@ from pathlib import Path
 
 import cv2
 from fastapi import APIRouter, HTTPException, Response, UploadFile
+from pydantic import BaseModel
 
-from app import config, store
+from app import config, mirror, store
 from app.modules.extraction.sensor import inspect_csv
 from app.modules.ingestion import calibration
 from app.modules.ingestion import calibration_key
@@ -28,6 +29,47 @@ def _kind_for(filename: str) -> SourceType:
             return SourceType(kind)
     allowed = sorted(e for exts in config.ALLOWED_EXTENSIONS.values() for e in exts)
     raise HTTPException(415, f"Unsupported file type '{ext}'. Allowed: {', '.join(allowed)}")
+
+
+class PresignRequest(BaseModel):
+    filename: str
+    size_bytes: int = 0
+
+
+class RegisterRequest(BaseModel):
+    key: str
+    filename: str
+
+
+@router.post("/presign")
+def presign_upload(req: PresignRequest) -> dict:
+    """A one-hour URL the browser can PUT a (large) file to directly, bypassing the function's request-size limit.
+    Then call /register. Needs an object store (see mirror.py)."""
+    m = mirror.get()
+    if m is None:
+        raise HTTPException(501, "Direct uploads need an object store (R2_* settings); use the normal upload instead")
+    kind = _kind_for(req.filename)  # reject unsupported types before anything is uploaded
+    if req.size_bytes > config.MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File too large")
+    key = f"incoming/{uuid.uuid4().hex}/{Path(req.filename).name}"
+    return {"key": key, "url": m.objects.presign_put(key), "method": "PUT", "kind": kind.value}
+
+
+@router.post("/register", response_model=Evidence, status_code=201)
+def register_upload(req: RegisterRequest) -> Evidence:
+    """Take a file the browser put in the bucket (via /presign), validate it like any upload and store it as evidence."""
+    m = mirror.get()
+    if m is None:
+        raise HTTPException(501, "Direct uploads need an object store")
+    if not req.key.startswith("incoming/") or ".." in req.key:
+        raise HTTPException(400, "Not an upload key")
+    data = m.objects.get(req.key)
+    if data is None:
+        raise HTTPException(404, "Nothing was uploaded under that key (did the PUT finish?)")
+    try:
+        return _ingest_bytes(req.filename, data, None, _kind_for(req.filename))
+    finally:
+        m.objects.delete(req.key)  # the validated copy is stored as evidence; the staging object is not kept
 
 
 @router.get("", response_model=list[Evidence])
@@ -65,7 +107,12 @@ async def _ingest(file: UploadFile, expected: SourceType | None) -> Evidence:
     kind = _kind_for(file.filename)
     if expected is not None and kind != expected:
         raise HTTPException(415, f"{file.filename}: this endpoint takes {expected.value} evidence, but the file looks like {kind.value}")
-    data = await file.read()
+    return _ingest_bytes(file.filename, await file.read(), file.content_type, kind)
+
+
+def _ingest_bytes(filename: str, data: bytes, content_type: str | None, kind: SourceType) -> Evidence:
+    """Validate and store one file's bytes as evidence (shared by the upload endpoints and direct-to-bucket uploads)."""
+    file = type("F", (), {"filename": filename, "content_type": content_type})
     if not data:
         raise HTTPException(400, "Empty file")
     if len(data) > config.MAX_UPLOAD_BYTES:

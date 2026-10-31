@@ -785,3 +785,14 @@ Tests: `tests/test_false_positives.py` (13). `pytest` 220 passed; evaluation 32/
 - Timeline confidence (`combined_confidence`): a witness-only event counted its observation twice (0.79 showed as 0.956). Now each observation counts once, one file/statement is one source (the strongest), a fused observation is not added to its inputs, then noisy-OR across sources. Tests in `tests/test_timeline.py`; the end-to-end one fails on the old code.
 - Witness speed grounding changed from "the quote has a number" (it dropped a real 80 km/h the model attached to the next sentence, missing two true conflicts) to "a matching number (km/h, mph, m/s, knots) appears in the lines around the quote" (`speed_is_stated`). Junction case 13/13 in 4 repeat runs with the AI on.
 - `docs/PITCH_PACK.md`: slide-by-slide facts. `pytest` 228 passed.
+
+## 2026-10-31 · Serverless mode: everything on Vercel with Cloudflare R2
+
+Goal: host dashboard and API on Vercel only (no tunnel, no second host).
+- `app/objectstore.py`: dependency-free S3/R2 client (SigV4 verified against AWS test vectors): get/put/delete/list/presigned PUT; `LocalObjectStore` for tests.
+- `app/mirror.py` + middleware in `main.py`: per request, pull needed state from the bucket into the working folder, then push changes and deletions. Off unless `R2_*` is set.
+- `routers/evidence.py`: `POST /api/evidence/presign` and `/register` for direct browser-to-bucket video upload (Vercel's 4.5 MB body limit); `_ingest_bytes` shared with normal upload.
+- `jobs.py`: analysis runs inside the request when `VERCEL`/`INLINE_JOBS` is set. `store.list_evidence` remaps `stored_path` to the local upload folder (the record holds another machine's path).
+- Frontend: `api.js` uses direct upload for videos over 4 MB; `EvidenceManager.jsx` handles an inline-finished run.
+- Deploy files: `vercel.json`, `api/index.py`, root `requirements.txt` (no pytest/uvicorn), `.python-version`, `.vercelignore`, `docs/DEPLOY_VERCEL.md`.
+- Tests: `tests/test_serverless_mirror.py` (10): cold-start round trip, delete + id non-reuse, audit pull, direct upload, signatures. Not verified: the function bundle size and path rewriting on a real Vercel account.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -10,6 +11,9 @@ from app import pipeline
 from app.schemas import AnalysisJob, StageProgress, StageResult
 
 log = logging.getLogger(__name__)
+
+# On Vercel (or INLINE_JOBS=1) analysis runs inside the request instead of in a background thread.
+INLINE = bool(os.environ.get("VERCEL") or os.environ.get("INLINE_JOBS"))
 
 
 class _JobTracker:
@@ -64,7 +68,10 @@ class JobManager:
             job = AnalysisJob(job_id=uuid.uuid4().hex[:8], state="running",
                               started_at=datetime.now(timezone.utc), stages=[])
             self._job = job
-        threading.Thread(target=self._work, args=(job,), name=f"analysis-{job.job_id}", daemon=True).start()
+        if INLINE:  # serverless: a function is frozen once it has responded, so the run must finish inside the request
+            self._work(job)
+        else:
+            threading.Thread(target=self._work, args=(job,), name=f"analysis-{job.job_id}", daemon=True).start()
         return self.current()
 
     def _work(self, job: AnalysisJob) -> None:
