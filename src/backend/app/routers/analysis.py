@@ -6,9 +6,9 @@ always has something to render.
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
-from app import store
+from app import report_html, store
 from app.report import build_report
 from app.jobs import jobs
 from app.modules.reconstruction import positions_export
@@ -52,8 +52,8 @@ def runs():
 
 
 @router.get("/runs/{run_id}/report", response_model=IncidentReport)
-def run_report(run_id: str, format: str = "json", narrative: bool = True):
-    return _report(run_id, format, narrative)
+def run_report(run_id: str, format: str = "json", narrative: bool = True, download: bool = False):
+    return _report(run_id, format, narrative, download)
 
 
 @router.get("/runs/{run_id}/{artifact}")
@@ -67,20 +67,27 @@ def run_artifact(run_id: str, artifact: str):
     return out
 
 
-def _report(run_id: str | None, format: str, narrative: bool):
+def _report(run_id: str | None, format: str, narrative: bool, download: bool = False):
     rep = build_report(run_id, narrative=narrative)
     if rep is None:
         raise HTTPException(404, "No analysis run yet" if run_id is None else "Run not found")
+    disposition = "attachment" if download else "inline"
     if format == "markdown":
         return PlainTextResponse(rep.markdown, media_type="text/markdown; charset=utf-8",
-                                 headers={"Content-Disposition": f'inline; filename="report-{rep.run_id}.md"'})
+                                 headers={"Content-Disposition": f'{disposition}; filename="report-{rep.run_id}.md"'})
+    if format == "html":
+        flag = "true" if narrative else "false"
+        page = report_html.render_page(rep.markdown, rep.run_id, f"?format=markdown&narrative={flag}&download=true",
+                                       f"?format=json&narrative={flag}")
+        return HTMLResponse(page, headers={"Content-Disposition": f'inline; filename="report-{rep.run_id}.html"'})
     return rep
 
 
 @router.get("/report", response_model=IncidentReport)
-def report(format: str = "json", narrative: bool = True):
-    """Report of the latest run. format=markdown returns the document; narrative=false skips the LLM summary."""
-    return _report(None, format, narrative)
+def report(format: str = "json", narrative: bool = True, download: bool = False):
+    """Report of the latest run. format=html is the readable, printable page; format=markdown the document;
+    narrative=false skips the LLM summary; download=true sends the Markdown as an attachment."""
+    return _report(None, format, narrative, download)
 
 
 @router.get("/audit", response_model=list[AuditEvent])

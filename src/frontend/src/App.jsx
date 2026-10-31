@@ -153,7 +153,7 @@ export default function App() {
             {analysing && <span className="flex items-center gap-1.5 rounded-full bg-[#0ea5e9]/20 px-2.5 py-1 text-[#bae6fd]">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7dd3fc]" />Analysing…</span>}
             {run && <span>last run {run.run_id}</span>}
-            <a href={`${API_BASE}/api/report?format=markdown&narrative=false`} target="_blank" rel="noreferrer" title="Open the investigator report (Markdown, with citations)"
+            <a href={`${API_BASE}/api/report?format=html&narrative=false`} target="_blank" rel="noreferrer" title="Open the investigator report (readable, printable, with citations and downloads)"
               className="rounded-full border border-[#334155] px-2.5 py-1 hover:bg-[#1e293b]">Report</a>
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} role="switch" aria-checked={theme === 'dark'}
               aria-label="Dark mode" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

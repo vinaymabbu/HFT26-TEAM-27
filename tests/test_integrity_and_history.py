@@ -73,6 +73,31 @@ def test_incident_report_markdown_and_json(monkeypatch, demo_case):
     assert "v1_telematics.csv @ rows:" in text  # every conflict cites its source
     assert client.get(f"/api/runs/{run['run_id']}/report?format=markdown").text.startswith("# Incident report")
 
+    # The report says what is observed and what is inferred, and each event's confidence on observation alone.
+    assert "## What is observed and what is inferred" in text and "| Observed alone |" in text
+    assert "Reconstruction positions" in text and "Timeline events" in text
+    assert rep["facts"]["observed_vs_inferred"]["events"] == len(rep["facts"]["events"])
+    assert all("confidence_from_observation_alone" in e for e in rep["facts"]["events"])
+
+    # The readable page: HTML with real tables, a print button and downloads; the Markdown can be fetched as a file.
+    page = client.get("/api/report?format=html&narrative=false")
+    assert page.headers["content-type"].startswith("text/html")
+    assert "<table>" in page.text and "<h2>Timeline</h2>" in page.text and "window.print()" in page.text
+    assert "format=markdown&amp;narrative=false&amp;download=true" in page.text
+    attach = client.get("/api/report?format=markdown&download=true")
+    assert attach.headers["content-disposition"].startswith("attachment") and attach.text.startswith("# Incident report")
+
+
+def test_the_report_page_escapes_everything_that_came_from_evidence():
+    from app.report_html import markdown_to_html, render_page
+    hostile = ('# Report <script>alert(1)</script>\n\n| File | Quote |\n|---|---|\n'
+               '| <img src=x onerror=alert(1)>.csv | "a" **b** `c<d>` |\n\n- *<b>x</b>* and **<i>y</i>**\n\n> <svg onload=alert(1)>')
+    out = markdown_to_html(hostile)
+    assert "<script" not in out and "<img" not in out and "<svg" not in out and "<b>" not in out and "<i>" not in out
+    assert "&lt;script&gt;" in out and "<table>" in out and "<strong>b</strong>" in out and "<code>c&lt;d&gt;</code>" in out
+    page = render_page(hostile, 'run"><script>x</script>', "?a=1&b=2", "?c=3")
+    assert "<script>x" not in page and 'run&quot;&gt;&lt;script&gt;' in page
+
 
 def test_incident_details_drive_times_and_report(monkeypatch):
     from app import config

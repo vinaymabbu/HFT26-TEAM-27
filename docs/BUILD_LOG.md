@@ -847,3 +847,11 @@ Two categories only, decided by what is claimed. In the footage plan (pixels) a 
 - Dashboard: the Footage tab shows a two-way "Observed vs inferred in this footage" bar with a one-line definition; box tooltips say AI-read vs motion-tracker.
 - Contract text for `/api/event-analysis` now documents `box` (missing since 1.3.4) and the split; `TrackPoint.source` description updated.
 - Tests: AI detection in the footage is `tracked` with the model's confidence and no assumptions; stops are `estimated` with a stated conclusion. `pytest` 242 passed; evaluation 32/32 offline. Dataset 03 footage: 118 observed points, 8 inferred (94% / 6%).
+
+## 2026-10-31 · Report brought up to date, readable and printable
+
+The Report button opened the raw Markdown as plain text, and the report had fallen behind the app: it still defined basis the old way, had no observed/inferred split or "observed alone" confidence, and its Reconstruction section was a list of track names that never said the plan is schematic and not to scale.
+- Content (`report.py`): new section "What is observed and what is inferred" (footage detections, reconstruction positions, timeline events resting only on AI readings); Timeline table gains an "Observed alone" column and a corrected basis/confidence explanation; Reconstruction lists the scene note (schematic / not calibrated), a per-vehicle table (points, observed share, mean confidence, evidence citations) and the assumptions behind the positions. The run's footage view is loaded too; `facts` gains `observed_vs_inferred` and per-event `confidence_from_observation_alone` (the AI summary sees them).
+- Page (`report_html.py`, `format=html`): the same document rendered as a styled, light/dark, print-friendly page with real tables, a Print / save as PDF button and Markdown and JSON downloads; everything from evidence is HTML-escaped before markup is added. `download=true` sends the Markdown as an attachment. No new dependency.
+- Dashboard: the Report button opens the page.
+- Tests: the new sections and the page structure on a real run; escaping of hostile text (script, img, svg) in file names, quotes and run ids. `pytest` 243 passed; evaluation 32/32 offline; frontend builds.

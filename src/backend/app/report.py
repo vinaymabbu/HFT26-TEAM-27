@@ -42,16 +42,30 @@ def _clock(t: float | None) -> str:
 
 def _load(run_id: str | None):
     get = (lambda n: store.load_run_output(run_id, n)) if run_id else store.load_output
-    raw = {n: get(f"{n}.json") for n in ("run", "observations", "timeline", "conflicts", "reconstruction")}
+    raw = {n: get(f"{n}.json") for n in ("run", "observations", "timeline", "conflicts", "reconstruction", "event_analysis")}
     if raw["run"] is None:
         return None
     return (AnalysisRun.model_validate(raw["run"]),
             [ObservationSet.model_validate(s) for s in raw["observations"] or []],
             Timeline.model_validate(raw["timeline"]), ConflictReport.model_validate(raw["conflicts"]),
-            Reconstruction.model_validate(raw["reconstruction"]))
+            Reconstruction.model_validate(raw["reconstruction"]),
+            Reconstruction.model_validate(raw["event_analysis"]) if raw["event_analysis"] else None)
 
 
-def _facts(run, sets, timeline, conflicts, recon) -> dict:
+OBSERVED_SOURCES = ("measured", "tracked")   # a reading taken from a sensor sample, or a detection in the video
+
+
+def _observed_share(vehicles) -> tuple[int, int]:
+    """(observed points, all points) over the tracks: observed = measured at a sensor sample or detected in the video."""
+    pts = [p for v in vehicles for p in v.track]
+    return sum(p.source in OBSERVED_SOURCES for p in pts), len(pts)
+
+
+def _share_cell(n: int, total: int) -> str:
+    return "—" if not total else f"{n} of {total} ({n / total:.0%})"
+
+
+def _facts(run, sets, timeline, conflicts, recon, footage=None) -> dict:
     """The structured facts the report (and the optional narrative) are built from."""
     by_id = {o.id: o for s in sets for o in s.observations}
     collision = next((e for e in timeline.events if e.category == "collision"), None)
@@ -67,7 +81,14 @@ def _facts(run, sets, timeline, conflicts, recon) -> dict:
             "where": None if not recon.collision else [recon.collision.x_m, recon.collision.y_m]},
         "vehicles": [{"id": v.vehicle_id, "label": v.label, "description": v.description} for v in recon.vehicles],
         "events": [{"t_s": e.t_start_s, "label": e.label, "sources": [s.value for s in e.source_types],
-                    "confidence": e.confidence} for e in timeline.events],
+                    "confidence": e.confidence, "confidence_from_observation_alone": e.confidence_observed}
+                   for e in timeline.events],
+        "observed_vs_inferred": {
+            "map_positions_observed": _observed_share(recon.vehicles)[0], "map_positions": _observed_share(recon.vehicles)[1],
+            **({} if footage is None else {"footage_points_observed": _observed_share(footage.vehicles)[0],
+                                           "footage_points": _observed_share(footage.vehicles)[1]}),
+            "events_resting_only_on_ai_readings": sum(e.confidence_observed == 0 for e in timeline.events),
+            "events": len(timeline.events)},
         "conflicts": [{"severity": c.severity.value, "type": c.type.value, "title": c.title,
                        "description": c.description,
                        "citations": [_cite(by_id.get(i)) for i in c.observation_ids]} for c in conflicts.conflicts],
@@ -131,8 +152,8 @@ def build_report(run_id: str | None = None, narrative: bool = True) -> IncidentR
     loaded = _load(run_id)
     if loaded is None:
         return None
-    run, sets, timeline, conflicts, recon = loaded
-    f = _facts(run, sets, timeline, conflicts, recon)
+    run, sets, timeline, conflicts, recon, footage = loaded
+    f = _facts(run, sets, timeline, conflicts, recon, footage)
     by_id = {o.id: o for s in sets for o in s.observations}
     summary = _llm_summary(f) if narrative else None
     headline = _headline(f)
@@ -165,19 +186,39 @@ def build_report(run_id: str | None = None, narrative: bool = True) -> IncidentR
         md.append("| (demo fixtures — no evidence uploaded) | | | |")
     md.append("")
 
+    ov = f["observed_vs_inferred"]
+    md += ["## What is observed and what is inferred", "",
+           "The split is by what is claimed. A **detection** is observed: a reading from a sensor sample, a vehicle found in "
+           "a video frame by the motion tracker, or read from the frame by the AI model (with the model's own confidence). "
+           "A **conclusion** drawn from detections is inferred: a stop, a position on the road, a collision, the order of events.", "",
+           "| Part | Observed | Inferred | Why |", "|---|---|---|---|"]
+    if footage is not None:
+        fo, ft = _observed_share(footage.vehicles)
+        md.append(f"| Footage (image detections) | {_share_cell(fo, ft)} | {_share_cell(ft - fo, ft)} "
+                  "| detections are observed; stops are concluded from them |")
+    mo, mt = _observed_share(recon.vehicles)
+    md.append(f"| Reconstruction positions | {_share_cell(mo, mt)} | {_share_cell(mt - mo, mt)} "
+              "| a position on the road depends on a camera that is assumed or calibrated |")
+    n_ev = ov["events"]
+    md.append(f"| Timeline events | {n_ev - ov['events_resting_only_on_ai_readings']} of {n_ev} have observed support "
+              f"| {ov['events_resting_only_on_ai_readings']} of {n_ev} rest only on AI readings "
+              "| *Observed alone* in the timeline shows each event's confidence without inferred evidence |")
+    md.append("")
+
     md += ["## Timeline", "",
            "*Basis* says what an event rests on: **measured** (read from a sensor or log), **reported** "
            "(a witness), **derived** (computed by fixed rules: tracking, calibration, fusion) or **inferred** "
-           "(an AI model's reading of video). Observations are measured or reported; derived and inferred "
-           "items are conclusions drawn from them.", "",
-           "| t | Clock | Event | Basis | Sources | Confidence |", "|---|---|---|---|---|---|"]
+           "(an AI model's reading of video). *Confidence* is how well the evidence supports the event, not the "
+           "probability that it happened. *Observed alone* is the same measure leaving out inferred evidence: "
+           "0% means the event rests only on AI readings.", "",
+           "| t | Clock | Event | Basis | Sources | Confidence | Observed alone |", "|---|---|---|---|---|---|---|"]
     for e in timeline.events:
         mix = ", ".join(f"{n} {b}" for b, n in e.basis_counts.items()) if len(e.basis_counts) > 1 else ""
         md.append(f"| {_fmt_t(e.t_start_s)}{'–' + _fmt_t(e.t_end_s) if e.t_end_s != e.t_start_s else ''} "
                   f"| {_clock(e.t_start_s)} | {e.label} | {e.basis or '—'}{f' ({mix})' if mix else ''} "
-                  f"| {', '.join(s.value for s in e.source_types)} | {e.confidence:.0%} |")
+                  f"| {', '.join(s.value for s in e.source_types)} | {e.confidence:.0%} | {e.confidence_observed:.0%} |")
     if not timeline.events:
-        md.append("| | | No events could be placed in time. | | |")
+        md.append("| | | No events could be placed in time. | | | | |")
     md.append("")
 
     md += ["## Contradictions", ""]
@@ -235,7 +276,23 @@ def build_report(run_id: str | None = None, narrative: bool = True) -> IncidentR
             md.append(f"- Stationary: {v.label}, t={v.track[0].t_s:g}–{v.track[-1].t_s:g} s, at pixel "
                       f"({v.track[0].x_m:g}, {v.track[0].y_m:g}) — {', '.join(_cite(by_id.get(i)) for i in v.source_observation_ids)}")
     elif recon.vehicles:
-        md.append(f"Tracks for {', '.join(v.label for v in recon.vehicles)} over t={recon.t_min_s:g}–{recon.t_max_s:g} s.")
+        plan = "schematic plan, not to scale" if recon.scene.units == "schematic" else f"plan in {recon.scene.units}"
+        md.append(f"{len(recon.vehicles)} vehicle tracks over t={recon.t_min_s:g}–{recon.t_max_s:g} s ({plan}).")
+        if recon.note:
+            md += ["", f"> {recon.note}"]
+        md += ["", "| Vehicle | Points | Observed | Mean confidence | Evidence |", "|---|---|---|---|---|"]
+        for v in recon.vehicles:
+            vo, vt = _observed_share([v])
+            confs = [p.confidence for p in v.track if p.confidence is not None]
+            md.append(f"| {v.label} | {vt} | {_share_cell(vo, vt)} | {f'{sum(confs) / len(confs):.0%}' if confs else '—'} "
+                      f"| {', '.join(f'`{i}` ({_cite(by_id.get(i))})' for i in v.source_observation_ids) or '—'} |")
+        assumed: dict[str, int] = {}
+        for v in recon.vehicles:
+            for a in v.assumptions:
+                assumed[a] = assumed.get(a, 0) + 1
+        if assumed:
+            md += ["", "What was added to the evidence to get these positions:", ""]
+            md += [f"- {a} *({n} of {len(recon.vehicles)} vehicles)*" for a, n in assumed.items()]
         if recon.collision:
             md.append(f"Collision point ({recon.collision.x_m:g} m, {recon.collision.y_m:g} m) at t={recon.collision.t_s:g} s, "
                       f"confidence {recon.collision.confidence:.0%}, supported by "
