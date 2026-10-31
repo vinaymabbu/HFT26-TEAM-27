@@ -72,7 +72,7 @@ def reconstruct_from_camera(observation_sets: list[ObservationSet], timeline: Ti
         for k, (t, x, y) in enumerate(pts):
             a, b = pts[max(0, k - 1)], pts[min(len(pts) - 1, k + 1)]
             track.append(TrackPoint(t_s=t, x_m=x, y_m=y, heading_deg=_heading(b[1] - a[1], b[2] - a[2]),
-                                    speed_kmh=speeds.get(round(t, 3))))
+                                    speed_kmh=speeds.get(round(t, 3)), seen_in_video=True))
         view = o.attributes["view"]
         mean = o.attributes.get("mean_speed_kmh")
         speed = f"~{mean:g} km/h ({o.attributes.get('calibration', '').replace('_', ' ')} calibration)" if mean else \
@@ -145,7 +145,8 @@ def reconstruct_ground_from_camera(observation_sets: list[ObservationSet], timel
             track.append(TrackPoint(t_s=t, x_m=round(x or 0.0, 2), y_m=round(y, 2),
                                     heading_deg=round(math.degrees(math.atan2(dx, dy)) % 360, 1),
                                     speed_kmh=None if ai else speeds.get(round(t, 3)),
-                                    source="estimated" if ai else "tracked", confidence=o.confidence if ai else 0.6))
+                                    source="estimated" if ai else "tracked", confidence=o.confidence if ai else 0.6,
+                                    seen_in_video=True))
         mean = o.attributes.get("mean_speed_kmh")
         vehicles.append(VehicleTrack(
             vehicle_id=o.attributes["track_id"], label=_name(o, view) if ai else f"{o.attributes['track_id']}" + (f" · ~{mean:g} km/h" if mean else ""),
@@ -234,7 +235,7 @@ def reconstruct_schematic_from_camera(observation_sets: list[ObservationSet], ti
             conf = SCHEMATIC_CONF_MIN + (SCHEMATIC_CONF_MAX - SCHEMATIC_CONF_MIN) * quality
             track.append(TrackPoint(t_s=t, x_m=round(gx, 2), y_m=round(gy, 2),
                                     heading_deg=round(math.degrees(math.atan2(b[1] - a[1], b[2] - a[2])) % 360, 1),
-                                    source="estimated", confidence=round(conf, 2)))
+                                    source="estimated", confidence=round(conf, 2), seen_in_video=True))
         vehicles.append(VehicleTrack(
             vehicle_id=o.attributes["track_id"], label=_name(o, view) if _is_ai(o) else o.attributes["track_id"],
             color=AI_COLORS[(n_ai - 1) % len(AI_COLORS)] if _is_ai(o) else VIEW_COLORS[(view - 1) % len(VIEW_COLORS)],

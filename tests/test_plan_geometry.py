@@ -148,6 +148,13 @@ def test_schematic_confidence_follows_the_evidence_inside_a_low_ceiling():
     assert all(n.confidence < a.confidence for n, a in zip(nominal, aligned))   # an assumed road direction is worth less than a found one
 
 
+def test_schematic_points_are_marked_seen_in_video_but_stay_estimated():
+    project, vp = camera_pose(W, H, FOCAL, 8.0, 22, -20)
+    pts = [[2.0 + 0.2 * k, *project(-1.875, 0.0, 14.0 + 1.6 * k)] for k in range(14)]
+    for rec in (_plan(pts, vp), _plan(pts, None)):
+        assert all(p.seen_in_video is True and p.source == "estimated" for p in rec.vehicles[0].track)   # detected, but not a measured position
+
+
 def test_the_pipeline_attaches_the_road_direction_to_its_tracks(tmp_path, monkeypatch):
     from app import config
     from app.modules import ingestion

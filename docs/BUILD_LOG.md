@@ -810,3 +810,11 @@ Vercel auto-detected the project as FastAPI and routed `/` to the API (`{"detail
 Problem: in the schematic plan (no calibration), every point of every vehicle carried the constant `confidence=0.25`, so the Reconstruction panel showed a flat "25%" for all vehicles and times and the confidence bars said nothing.
 Fix (`reconstruction/camera.py`): a point's confidence = the detection's own confidence x plan factor (road direction found from lane lines 1.0, only assumed 0.6) x distance factor (0.6 at the top of the view, where a pixel spans most road, to 1.0 at the bottom), mapped into 0.10 to 0.30 so an uncalibrated plan still never reads as high-confidence. Sources are unchanged (`estimated`); calibrated plans are untouched.
 Test: `test_schematic_confidence_follows_the_evidence_inside_a_low_ceiling` (not flat, within 0.10 to 0.30, far < near, assumed road < found road). `pytest` 239 passed; evaluation 32/32 offline. Dataset 03: per-vehicle means 0.16 to 0.19 (was 0.25 everywhere).
+
+## 2026-10-31 · "Seen in video" separated from "position measured" (schema 1.3.3)
+
+Problem: the Reconstruction panel read "0% observed, 100% inferred" for a clip whose vehicles were all really detected, because uncalibrated-plan positions are (correctly) `estimated`. The split hid that the vehicles were seen.
+- `TrackPoint.seen_in_video` (optional bool, schema 1.3.3, additive): true where the vehicle was detected in video at that moment (motion tracker or AI sighting). `source` is unchanged, so the observed/inferred rule and the dotted/solid lines are unchanged.
+- Set in `reconstruction/camera.py` (pixel, calibrated and schematic plans); exported in `/api/reconstruction/positions`; schemas re-exported; contract text and version updated.
+- Dashboard: the bar has a third band "seen in video, position estimated" (`ReconstructionTrace.jsx`); the source caption now says "position assumed, not measured".
+- Test: `test_schematic_points_are_marked_seen_in_video_but_stay_estimated`. `pytest` 240 passed; evaluation 32/32 offline; frontend builds. Dataset 03: 111 of 111 points seen in video, 0% measured.

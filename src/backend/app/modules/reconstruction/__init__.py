@@ -127,7 +127,7 @@ def positions_export(rec: Reconstruction, observation_sets: list[ObservationSet]
         "vehicles": [
             {"id": v.vehicle_id, "label": v.label, "description": v.description,
              "positions": [{"t_s": p.t_s, "x": p.x_m, "y": p.y_m, "heading_deg": p.heading_deg,
-                            "speed_kmh": p.speed_kmh, "source": p.source, "confidence": p.confidence,
+                            "speed_kmh": p.speed_kmh, "source": p.source, "confidence": p.confidence, "seen_in_video": p.seen_in_video,
                             "basis": (pv := prov[v.vehicle_id](p.t_s, p.source))[1], "observation_ids": pv[0]}
                            for p in v.track],
              "source_observation_ids": v.source_observation_ids}
